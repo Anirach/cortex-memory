@@ -31,6 +31,7 @@ from cortex.evolution import EvolutionEngine, Strategy
 from cortex.metacognition import MetaCognitionEngine, ConfidenceAssessment, SelfEvaluation
 from cortex.hippocampus import HippocampalIndex, SearchResult
 from cortex.gap_filling import GapFillingEngine, Gap, FillResult, GapReport
+from cortex.embeddings import EmbeddingBackend, EmbeddingConfig, configure as configure_embeddings, get_backend_info
 from cortex.obsidian import ObsidianIntegration
 
 
@@ -56,7 +57,18 @@ class CortexEngine:
         obsidian_sync: bool = False,
         obsidian_para: bool = True,
         obsidian_export_inferred: bool = True,
+        embedding_backend: EmbeddingBackend | str | None = None,
     ) -> None:
+        # Configure embedding backend
+        if embedding_backend is not None:
+            if isinstance(embedding_backend, str):
+                embedding_backend = EmbeddingBackend(embedding_backend)
+            self._embedding_config = configure_embeddings(
+                EmbeddingConfig(backend=embedding_backend)
+            )
+        else:
+            self._embedding_config = None  # use defaults (auto-detect on demand)
+
         # Storage
         self._storage = Storage(db_path)
 
@@ -383,6 +395,10 @@ class CortexEngine:
     # ══════════════════════════════════════════════════════════
     #  STATS & INFO
     # ══════════════════════════════════════════════════════════
+
+    def embedding_info(self) -> dict[str, Any]:
+        """Get information about the active embedding backend."""
+        return get_backend_info()
 
     def stats(self) -> dict[str, Any]:
         """Get memory system statistics."""
