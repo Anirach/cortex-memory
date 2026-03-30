@@ -40,11 +40,12 @@
 
 \begin{document}
 
-\title{CORTEX: Self-Evolving Cognitive Memory for Autonomous AI Agents}
+\title{CORTEX: A Prompt-Aware Self-Evolving Cognitive Memory Architecture with Automatic Technique Selection for AI Agents}
 \titlerunning{CORTEX: Self-Evolving Cognitive Memory}
 
 \author{Anirach Mingkhwan\inst{1}}
 
+\titlerunning{CORTEX: Prompt-Aware Self-Evolving Cognitive Memory}
 \authorrunning{A. Mingkhwan}
 
 \institute{King Mongkut's University of Technology North Bangkok, Bangkok, Thailand\\
@@ -54,28 +55,35 @@
 
 %==============================================================
 \begin{abstract}
-Persistent memory remains a fundamental limitation of large language model (LLM)-based autonomous agents. Current memory systems for AI agents typically support a single memory type with flat retrieval, lacking the multi-layered cognitive structure that enables biological intelligence to consolidate, forget, self-correct, and evolve retrieval strategies over time. We present \textbf{CORTEX} (Cognitive Orchestrated Retrieval with Temporal EXperience), a nine-layer cognitive memory architecture that unifies four biologically-inspired memory types---working, episodic, semantic, and procedural---with a hippocampal hybrid search index, an Ebbinghaus forgetting curve, a sleep/dream consolidation cycle, a self-improvement engine, a genetic algorithm for retrieval strategy evolution, a meta-cognition layer with active gap filling, prompt-aware cognitive assembly that automatically selects prompt engineering techniques based on task complexity, and bidirectional synchronization with Obsidian knowledge vaults. CORTEX operates fully offline with zero external API dependencies, persists all state in SQLite, and requires only Python and NumPy. A multi-backend embedding system with automatic detection enables optional semantic embeddings via sentence-transformers or ONNX Runtime while preserving zero-mandatory-dependency operation. Experimental evaluation on 179 unit tests demonstrates correctness across all subsystems, with sub-millisecond memory operations and convergent evolution of retrieval strategies within 10 generations. To our knowledge, CORTEX is the first architecture to combine all nine cognitive layers---including self-evolution via genetic algorithms, active knowledge gap filling, and automatic prompt engineering---in a single, embeddable memory system for autonomous agents.
+While large language model (LLM)-based agents increasingly rely on persistent memory, existing systems treat memory as a passive store---retrieving content without adapting \textit{how} that content is presented to the LLM. We argue that \textbf{prompt-aware memory}---where the memory system itself selects and composes prompt engineering techniques based on task complexity---is essential for effective autonomous agents. We present \textbf{CORTEX} (Cognitive Orchestrated Retrieval with Temporal EXperience), which introduces a \textbf{PromptAssembler} module that automatically classifies queries into five complexity levels (simple, moderate, complex, knowledge gap, skill execution) and selects optimal combinations from ten prompt techniques including chain-of-thought, ReAct, few-shot from procedural memory, and self-critique---with outcome recording that enables the system to learn which assemblies produce better results over time. The PromptAssembler operates atop a nine-layer cognitive memory architecture featuring four biologically-inspired memory types, a hippocampal hybrid search index, Ebbinghaus forgetting curves, sleep/dream consolidation, genetic algorithm-based retrieval evolution, active gap filling, multi-backend semantic embeddings (ONNX/sentence-transformers with hash fallback), and bidirectional Obsidian vault synchronization. CORTEX operates offline with zero mandatory external dependencies. Evaluation across 179 unit tests demonstrates correctness with sub-millisecond operations, convergent evolution within 10 generations, and measurably improved recall with semantic embeddings over hash-based baselines.
 
-\keywords{Cognitive memory architecture \and Autonomous agents \and Self-evolving AI \and Knowledge management \and Memory consolidation \and Genetic algorithms}
+\keywords{Prompt engineering \and Cognitive memory architecture \and Autonomous agents \and Self-evolving AI \and Prompt assembly \and Memory consolidation}
 \end{abstract}
 
 %==============================================================
 \section{Introduction}\label{sec:intro}
 
-The emergence of LLM-based autonomous agents~\cite{weng2023agent,sumers2023cognitive} has created an urgent need for persistent, structured memory systems that go beyond simple vector stores. While human cognition benefits from multiple specialized memory systems---working memory for immediate context, episodic memory for experiences, semantic memory for facts, and procedural memory for skills~\cite{tulving1972episodic,squire2004memory,baddeley2000working}---most current AI agent memory systems implement only one or two of these types, with no mechanism for self-improvement or evolution.
+The emergence of LLM-based autonomous agents~\cite{weng2023agent,sumers2023cognitive} has created an urgent need for persistent, structured memory systems. While recent work has produced capable memory stores---Mem0~\cite{mem0_2024} for fact extraction, MemGPT/Letta~\cite{packer2023memgpt} for virtual context management, Zep~\cite{zep2024} for temporal memory---these systems share a critical blind spot: they retrieve content but have no awareness of \textit{how} that content should be presented to the LLM. A simple factual lookup and a complex multi-step analysis both receive the same flat context injection.
 
-Current approaches such as Mem0~\cite{mem0_2024}, MemGPT/Letta~\cite{packer2023memgpt}, and Zep~\cite{zep2024} provide valuable memory persistence but suffer from three key limitations: (1)~they lack multi-type memory organization inspired by cognitive science, (2)~they have no self-evolution mechanism for retrieval strategies, and (3)~they do not actively detect and fill knowledge gaps. Furthermore, no existing system provides bidirectional synchronization with personal knowledge management tools, creating a disconnect between agent memory and human-curated knowledge bases.
+Human cognition does not work this way. When recalling information for a simple question (``What year was that?''), we retrieve directly. For complex reasoning (``Why did this policy fail?''), we engage step-by-step analysis, draw on analogies, and self-critique our conclusions. The \textit{mode of retrieval and presentation} adapts to task demands~\cite{tulving1972episodic,squire2004memory,baddeley2000working}.
 
-\textbf{Contributions.} We introduce CORTEX, a nine-layer cognitive memory architecture that addresses these gaps:
+Current agent memory systems suffer from four key limitations: (1)~they lack multi-type memory organization inspired by cognitive science, (2)~they have no self-evolution mechanism for retrieval strategies, (3)~they do not actively detect and fill knowledge gaps, and (4)~\textbf{they are prompt-unaware}---incapable of adapting their output format, reasoning structure, or technique composition to match task complexity. Furthermore, no existing system provides bidirectional synchronization with personal knowledge management tools.
+
+\textbf{Contributions.} We introduce CORTEX, a prompt-aware cognitive memory architecture that addresses these gaps. Our primary contribution is:
 
 \begin{enumerate}[leftmargin=*]
+    \item \textbf{Prompt-aware cognitive assembly (PromptAssembler)}---the first memory system that automatically classifies task complexity into five levels and selects optimal combinations from ten prompt engineering techniques (chain-of-thought, ReAct, few-shot from procedural memory, self-critique, role prompting, etc.), with outcome recording that enables the system to learn which assemblies work best over time.
+\end{enumerate}
+
+\noindent This PromptAssembler operates atop a comprehensive cognitive memory foundation with six additional contributions:
+
+\begin{enumerate}[leftmargin=*]\setcounter{enumi}{1}
     \item \textbf{Unified multi-type memory} with four biologically-inspired stores (working, episodic, semantic, procedural) connected through a hippocampal hybrid search index combining vector similarity, BM25, temporal, graph, and importance signals.
     \item \textbf{Cognitive lifecycle management} via an Ebbinghaus forgetting curve ($R = e^{-t/S}$) and a sleep/dream consolidation cycle that promotes memories across types.
     \item \textbf{Self-evolution} through a genetic algorithm that evolves retrieval strategy parameters using tournament selection with elitism, producing measurable fitness convergence.
     \item \textbf{Active knowledge gap filling} with a four-class taxonomy (inferrable, searchable, askable, consolidatable) and five auto-fill strategies.
     \item \textbf{Bidirectional Obsidian vault synchronization} supporting PARA method detection, wikilink graph mapping, dead link gap detection, and auto-generated Maps of Content.
-    \item \textbf{Automatic prompt engineering} via a PromptAssembler that analyzes task complexity (simple, moderate, complex, knowledge gap, skill execution) and selects optimal combinations from ten prompt techniques including chain-of-thought, ReAct, few-shot, and self-critique, with outcome recording for self-improvement.
-    \item \textbf{Zero-mandatory-dependency offline operation} using SQLite with WAL mode and a multi-backend embedding system that auto-detects the best available provider (ONNX Runtime, sentence-transformers, or hash-based TF-IDF), enabling real semantic embeddings without requiring external APIs.
+    \item \textbf{Multi-backend semantic embeddings} with automatic detection (ONNX Runtime, sentence-transformers, or hash-based TF-IDF fallback), enabling real semantic understanding without mandatory external dependencies.
 \end{enumerate}
 
 %==============================================================
