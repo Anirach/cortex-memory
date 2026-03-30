@@ -54,7 +54,7 @@
 
 %==============================================================
 \begin{abstract}
-Persistent memory remains a fundamental limitation of large language model (LLM)-based autonomous agents. Current memory systems for AI agents typically support a single memory type with flat retrieval, lacking the multi-layered cognitive structure that enables biological intelligence to consolidate, forget, self-correct, and evolve retrieval strategies over time. We present \textbf{CORTEX} (Cognitive Orchestrated Retrieval with Temporal EXperience), a nine-layer cognitive memory architecture that unifies four biologically-inspired memory types---working, episodic, semantic, and procedural---with a hippocampal hybrid search index, an Ebbinghaus forgetting curve, a sleep/dream consolidation cycle, a self-improvement engine, a genetic algorithm for retrieval strategy evolution, a meta-cognition layer with active gap filling, and bidirectional synchronization with Obsidian knowledge vaults. CORTEX operates fully offline with zero external API dependencies, persists all state in SQLite, and requires only Python and NumPy. A multi-backend embedding system with automatic detection enables optional semantic embeddings via sentence-transformers or ONNX Runtime while preserving zero-mandatory-dependency operation. Experimental evaluation on 132 unit tests demonstrates correctness across all subsystems, with sub-millisecond memory operations and convergent evolution of retrieval strategies within 10 generations. To our knowledge, CORTEX is the first architecture to combine all nine cognitive layers---including self-evolution via genetic algorithms and active knowledge gap filling---in a single, embeddable memory system for autonomous agents.
+Persistent memory remains a fundamental limitation of large language model (LLM)-based autonomous agents. Current memory systems for AI agents typically support a single memory type with flat retrieval, lacking the multi-layered cognitive structure that enables biological intelligence to consolidate, forget, self-correct, and evolve retrieval strategies over time. We present \textbf{CORTEX} (Cognitive Orchestrated Retrieval with Temporal EXperience), a nine-layer cognitive memory architecture that unifies four biologically-inspired memory types---working, episodic, semantic, and procedural---with a hippocampal hybrid search index, an Ebbinghaus forgetting curve, a sleep/dream consolidation cycle, a self-improvement engine, a genetic algorithm for retrieval strategy evolution, a meta-cognition layer with active gap filling, prompt-aware cognitive assembly that automatically selects prompt engineering techniques based on task complexity, and bidirectional synchronization with Obsidian knowledge vaults. CORTEX operates fully offline with zero external API dependencies, persists all state in SQLite, and requires only Python and NumPy. A multi-backend embedding system with automatic detection enables optional semantic embeddings via sentence-transformers or ONNX Runtime while preserving zero-mandatory-dependency operation. Experimental evaluation on 179 unit tests demonstrates correctness across all subsystems, with sub-millisecond memory operations and convergent evolution of retrieval strategies within 10 generations. To our knowledge, CORTEX is the first architecture to combine all nine cognitive layers---including self-evolution via genetic algorithms, active knowledge gap filling, and automatic prompt engineering---in a single, embeddable memory system for autonomous agents.
 
 \keywords{Cognitive memory architecture \and Autonomous agents \and Self-evolving AI \and Knowledge management \and Memory consolidation \and Genetic algorithms}
 \end{abstract}
@@ -74,6 +74,7 @@ Current approaches such as Mem0~\cite{mem0_2024}, MemGPT/Letta~\cite{packer2023m
     \item \textbf{Self-evolution} through a genetic algorithm that evolves retrieval strategy parameters using tournament selection with elitism, producing measurable fitness convergence.
     \item \textbf{Active knowledge gap filling} with a four-class taxonomy (inferrable, searchable, askable, consolidatable) and five auto-fill strategies.
     \item \textbf{Bidirectional Obsidian vault synchronization} supporting PARA method detection, wikilink graph mapping, dead link gap detection, and auto-generated Maps of Content.
+    \item \textbf{Automatic prompt engineering} via a PromptAssembler that analyzes task complexity (simple, moderate, complex, knowledge gap, skill execution) and selects optimal combinations from ten prompt techniques including chain-of-thought, ReAct, few-shot, and self-critique, with outcome recording for self-improvement.
     \item \textbf{Zero-mandatory-dependency offline operation} using SQLite with WAL mode and a multi-backend embedding system that auto-detects the best available provider (ONNX Runtime, sentence-transformers, or hash-based TF-IDF), enabling real semantic embeddings without requiring external APIs.
 \end{enumerate}
 
@@ -582,6 +583,125 @@ The \texttt{self\_evaluate()} method produces a \texttt{SelfEvaluation} with ove
 where $\bar{C}_{\text{conf}}$ is mean confidence, $\bar{I}$ is mean importance, $C_{\text{cov}}$ is coverage score, $D = |\text{active types}|/3$ is diversity, and $R$ is the fraction of memories accessed in the last 7 days.
 
 %==============================================================
+\section{Prompt-Aware Cognitive Assembly}\label{sec:prompt}
+
+While CORTEX's memory layers handle \textit{what} is stored and retrieved, the PromptAssembler addresses \textit{how} retrieved knowledge is presented. This module automatically selects and combines prompt engineering techniques based on task complexity analysis, making CORTEX ``prompt-aware''---it does not merely retrieve memories but constructs optimally structured prompts for downstream LLM consumption.
+
+\subsection{Task Complexity Classification}
+
+The assembler classifies each incoming query into one of five complexity levels using a combination of heuristic analysis and memory-informed signals (Algorithm~\ref{alg:complexity}).
+
+\begin{algorithm}[t]
+\caption{Task Complexity Analysis}\label{alg:complexity}
+\DontPrintSemicolon
+\KwIn{Query $q$, Memory stores $\mathcal{E}, \mathcal{S}, \mathcal{P}$}
+\KwOut{TaskComplexity $\in \{\text{Simple}, \text{Moderate}, \text{Complex}, \text{Gap}, \text{Skill}\}$}
+\BlankLine
+\tcp{Check procedural memory first}
+$\text{skills} \leftarrow \mathcal{P}.\text{recall}(q, k{=}1)$\;
+\If{$|\text{skills}| > 0$ \textbf{and} $\text{reliability}(\text{skills}[0]) > 0.7$}{
+    \Return{\textsc{Skill}}\;
+}
+\BlankLine
+\tcp{Check knowledge coverage}
+\If{$|\mathcal{E}| + |\mathcal{S}| + |\mathcal{P}| \geq 3$}{
+    $c \leftarrow \textsc{AssessConfidence}(q).\text{coverage}$\;
+    \If{$c \leq 0.3$}{
+        \Return{\textsc{Gap}}\;
+    }
+}
+\BlankLine
+\tcp{Heuristic complexity scoring}
+$s \leftarrow 0$\;
+\If{$q$ contains compare/contrast/analyze/evaluate/pros-and-cons}{$s \mathrel{+}= 3$}
+\If{$q$ contains how/why/explain/describe}{$s \mathrel{+}= 2$}
+\If{$q$ contains furthermore/additionally/step-by-step}{$s \mathrel{+}= 2$}
+\If{$|q.\text{words}| > 30$}{$s \mathrel{+}= 2$}
+\If{$q.\text{count}(\text{`?'}) > 1$}{$s \mathrel{+}= 2$}
+\If{$q$ contains what-is/who-is/when-did/define}{$s \mathrel{-}= 1$}
+\BlankLine
+\lIf{$s \leq 1$}{\Return{\textsc{Simple}}}
+\lIf{$s \leq 4$}{\Return{\textsc{Moderate}}}
+\Return{\textsc{Complex}}\;
+\end{algorithm}
+
+\subsection{Technique Selection}
+
+Each complexity level maps to a curated set of prompt engineering techniques (Table~\ref{tab:techniques}). The assembler supports ten techniques spanning the major paradigms in modern prompt engineering.
+
+\begin{table}[t]
+\centering
+\caption{Complexity-to-technique mapping. Each row shows which prompt techniques are activated for a given complexity level.}\label{tab:techniques}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Technique} & \textbf{Simple} & \textbf{Moderate} & \textbf{Complex} & \textbf{Gap} & \textbf{Skill} \\
+\midrule
+Zero-Shot & \checkmark & -- & -- & -- & -- \\
+Few-Shot & -- & -- & -- & -- & \checkmark \\
+Chain-of-Thought & -- & \checkmark & \checkmark & \checkmark & -- \\
+ReAct & -- & -- & -- & \checkmark & -- \\
+Self-Critique & -- & -- & \checkmark & -- & -- \\
+RAG & \checkmark & \checkmark & \checkmark & \checkmark & -- \\
+Role Prompting & -- & \checkmark & \checkmark & -- & \checkmark \\
+Structured Output & -- & -- & -- & -- & \checkmark \\
+Self-Consistency & -- & -- & \checkmark & -- & -- \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Assembly Pipeline}
+
+Figure~\ref{fig:prompt-pipeline} illustrates the complete assembly pipeline. The assembler (1)~analyzes complexity, (2)~selects techniques from the mapping, (3)~retrieves context memories via RAG and procedural examples via few-shot, (4)~detects or accepts an explicit role, and (5)~builds the final system and user prompts by composing technique-specific templates.
+
+\begin{figure}[t]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    box/.style={draw, rounded corners=3pt, fill=#1!15, minimum width=2.6cm, minimum height=1.0cm, align=center, font=\small\sffamily, inner sep=6pt},
+    arrow/.style={-stealth, thick},
+    lbl/.style={font=\scriptsize\sffamily, fill=white, inner sep=2pt, rounded corners=1pt},
+]
+\node[box=cortexblue] (query) at (0,0) {Query};
+\node[box=cortexorange] (analyze) at (3.2,0) {Complexity\\Analysis};
+\node[box=cortexpurple] (select) at (6.6,0) {Technique\\Selection};
+\node[box=cortexgreen] (retrieve) at (10.0,0) {Memory\\Retrieval};
+\node[box=cortexteal] (assemble) at (13.4,0) {Prompt\\Assembly};
+\node[box=cortexindigo] (output) at (16.8,0) {Assembled\\Prompt};
+
+\draw[arrow] (query) -- (analyze);
+\draw[arrow] (analyze) -- (select);
+\draw[arrow] (select) -- (retrieve);
+\draw[arrow] (retrieve) -- (assemble);
+\draw[arrow] (assemble) -- (output);
+
+% Feedback loop
+\draw[arrow, dashed, color=cortexred] (output.south) -- ++(0,-0.8) -| node[lbl, pos=0.25, below] {outcome recording} (analyze.south);
+
+% Memory connection
+\node[box=cortexgreen, minimum width=2.0cm, minimum height=0.7cm] (mem) at (10.0,-2.0) {CORTEX\\Memory};
+\draw[arrow, color=cortexgray] (mem) -- (retrieve);
+
+\end{tikzpicture}
+}
+\caption{PromptAssembler pipeline. Queries are analyzed for complexity, mapped to techniques, enriched with retrieved memories, and assembled into structured prompts. Outcome recording feeds back to improve future assemblies.}
+\label{fig:prompt-pipeline}
+\end{figure}
+
+Role detection uses regex pattern matching against the query (e.g., \texttt{code|program|function} $\rightarrow$ \textit{coder}), mapping to specialized system prompt templates. Explicit role overrides take precedence over detection.
+
+\subsection{Outcome Recording and Self-Improvement}
+
+Each assembled prompt can be scored after use via \texttt{record\_outcome(assembled, success, feedback)}. The assembler maintains an assembly history and computes success rates per complexity level and per technique combination. Failed assemblies are logged to the self-improvement engine (Section~\ref{sec:improvement}), enabling the system to learn which technique combinations work best for different task types. The \texttt{get\_technique\_stats()} method returns aggregated statistics that can guide future technique selection refinement.
+
+Assembler confidence is computed as:
+\begin{equation}\label{eq:assembler-confidence}
+    C_a = C_{\text{base}}(\text{complexity}) + 0.05 \cdot |\text{context}| + 0.1 \cdot |\text{few\_shot}|
+\end{equation}
+where $C_{\text{base}}$ ranges from 0.9 (simple) to 0.3 (knowledge gap), reflecting inherent difficulty. The presence of retrieved context memories and few-shot examples from procedural memory boosts confidence.
+
+%==============================================================
 \section{Obsidian Vault Integration}\label{sec:obsidian}
 
 The \texttt{ObsidianIntegration} class provides bidirectional synchronization between CORTEX memory and an Obsidian vault (Figure~\ref{fig:obsidian}).
@@ -664,15 +784,15 @@ The sync tracking table (\texttt{obsidian\_sync}) stores content hashes to enabl
 
 \subsection{Implementation Details}
 
-CORTEX is implemented in Python 3.10+ with full type annotations across 12 modules (2,800+ lines of code). The only runtime dependency is NumPy; all persistence uses SQLite in WAL mode. The system is structured as a pip-installable package with a public API centered on the \texttt{CortexEngine} class.
+CORTEX is implemented in Python 3.10+ with full type annotations across 13 modules (3,100+ lines of code). The only runtime dependency is NumPy; all persistence uses SQLite in WAL mode. The system is structured as a pip-installable package with a public API centered on the \texttt{CortexEngine} class.
 
 \subsection{Test Suite Results}
 
-We validated CORTEX with a comprehensive test suite of 132 tests organized across 7 test modules. All tests pass with zero failures:
+We validated CORTEX with a comprehensive test suite of 179 tests organized across 8 test modules. All tests pass with zero failures:
 
 \begin{table}[t]
 \centering
-\caption{Test suite results: 132 tests, all passing in 0.38 seconds.}\label{tab:tests}
+\caption{Test suite results: 179 tests, all passing in 0.49 seconds.}\label{tab:tests}
 {\small
 \begin{tabularx}{\textwidth}{lrX}
 \toprule
@@ -685,8 +805,9 @@ We validated CORTEX with a comprehensive test suite of 132 tests organized acros
 \texttt{test\_evolution.py} (genetic algorithm) & 9 & Pop/evolve/feedback/fitness \\
 \texttt{test\_gap\_filling.py} (gap detection \& fill) & 18 & All 5 strategies + report \\
 \texttt{test\_obsidian.py} (vault integration) & 29 & Ingest/export/sync/PARA \\
+\texttt{test\_prompt\_assembler.py} (prompt assembly) & 47 & All 5 complexities + techniques \\
 \midrule
-\textbf{Total} & \textbf{132} & \textbf{0.38s execution time} \\
+\textbf{Total} & \textbf{179} & \textbf{0.49s execution time} \\
 \bottomrule
 \end{tabularx}
 }
@@ -794,6 +915,7 @@ Knowledge graph & \checkmark & \checkmark & -- & \checkmark & -- \\
 Obsidian integration & \checkmark & -- & -- & -- & -- \\
 PARA method support & \checkmark & -- & -- & -- & -- \\
 Offline operation & \checkmark & -- & -- & -- & \checkmark \\
+Prompt assembly & \checkmark & -- & -- & -- & -- \\
 Semantic embeddings & \checkmark & -- & -- & -- & -- \\
 Zero external APIs & \checkmark & -- & -- & -- & -- \\
 \bottomrule
@@ -808,11 +930,13 @@ CORTEX is the only system offering all listed features. Key differentiators incl
 
 \subsection{Novelty}
 
-To our knowledge, CORTEX is the first architecture to unify nine cognitive layers in a single embeddable memory system: (1)~four biologically-inspired memory types, (2)~hippocampal hybrid search, (3)~Ebbinghaus forgetting curves, (4)~sleep/dream consolidation, (5)~self-improvement via error tracking, (6)~self-evolution via genetic algorithms, (7)~meta-cognition with confidence scoring, (8)~active knowledge gap filling, and (9)~bidirectional knowledge vault synchronization. The combination of self-evolution with active gap filling is particularly novel---the system not only adapts \textit{how} it retrieves memories but actively identifies and fills \textit{what} is missing.
+To our knowledge, CORTEX is the first architecture to unify nine cognitive layers in a single embeddable memory system: (1)~four biologically-inspired memory types, (2)~hippocampal hybrid search, (3)~Ebbinghaus forgetting curves, (4)~sleep/dream consolidation, (5)~self-improvement via error tracking, (6)~self-evolution via genetic algorithms, (7)~meta-cognition with confidence scoring, (8)~active knowledge gap filling, and (9)~bidirectional knowledge vault synchronization. The addition of prompt-aware cognitive assembly (Section~\ref{sec:prompt}) further distinguishes CORTEX: the system not only adapts \textit{how} it retrieves memories and actively identifies \textit{what} is missing, but also determines the optimal \textit{presentation strategy} for retrieved knowledge through automatic prompt engineering technique selection.
 
 \subsection{Limitations and Future Work}
 
 Several limitations warrant future investigation:
+
+\textbf{Rule-based complexity heuristics.} The current PromptAssembler uses hand-crafted heuristics for task complexity classification. Future work could train a classifier on assembly outcomes stored via the outcome recording mechanism, enabling data-driven technique selection.
 
 \textbf{Domain-specific embeddings.} While lightweight local embedding models are now supported, future work could explore domain-specific fine-tuned models for specialized agent deployments.
 
@@ -831,9 +955,9 @@ The SQLite backend with WAL mode supports concurrent reads and sequential writes
 %==============================================================
 \section{Conclusion}\label{sec:conclusion}
 
-We presented CORTEX, a nine-layer cognitive memory architecture for autonomous AI agents that unifies biologically-inspired multi-type memory with self-evolution, active gap filling, and bidirectional knowledge vault synchronization. The architecture implements working, episodic, semantic, and procedural memory types connected through a hippocampal hybrid search index; an Ebbinghaus forgetting curve with sleep/dream consolidation; a self-improvement engine; genetic algorithm-based retrieval strategy evolution; meta-cognition with confidence scoring; active gap filling with five strategies and a four-class taxonomy; and bidirectional Obsidian vault integration with PARA method detection and wikilink graph mapping.
+We presented CORTEX, a nine-layer cognitive memory architecture for autonomous AI agents that unifies biologically-inspired multi-type memory with self-evolution, active gap filling, prompt-aware cognitive assembly, and bidirectional knowledge vault synchronization. The architecture implements working, episodic, semantic, and procedural memory types connected through a hippocampal hybrid search index; an Ebbinghaus forgetting curve with sleep/dream consolidation; a self-improvement engine; genetic algorithm-based retrieval strategy evolution; meta-cognition with confidence scoring; active gap filling with five strategies and a four-class taxonomy; automatic prompt engineering via complexity-driven technique selection; and bidirectional Obsidian vault integration with PARA method detection and wikilink graph mapping.
 
-Experimental evaluation demonstrates correctness across 132 tests with sub-millisecond core operations and convergent evolution within 10 generations. The system operates fully offline with zero external API dependencies, requiring only Python, NumPy, and SQLite.
+Experimental evaluation demonstrates correctness across 179 tests with sub-millisecond core operations and convergent evolution within 10 generations. The system operates fully offline with zero external API dependencies, requiring only Python, NumPy, and SQLite.
 
 CORTEX represents a step toward AI agents with genuinely cognitive memory---systems that not only store and retrieve information but actively maintain, evolve, and improve their knowledge over time. The complete implementation is available as an open-source Python package.
 

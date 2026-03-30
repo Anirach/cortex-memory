@@ -33,6 +33,7 @@ from cortex.hippocampus import HippocampalIndex, SearchResult
 from cortex.gap_filling import GapFillingEngine, Gap, FillResult, GapReport
 from cortex.embeddings import EmbeddingBackend, EmbeddingConfig, configure as configure_embeddings, get_backend_info
 from cortex.obsidian import ObsidianIntegration
+from cortex.prompt_assembler import PromptAssembler, AssembledPrompt
 
 
 class CortexEngine:
@@ -111,6 +112,9 @@ class CortexEngine:
         # Obsidian Integration
         self._obsidian_vault = obsidian_vault
         self._obsidian_sync_on_consolidate = obsidian_sync
+        # Prompt Assembler
+        self.prompt_assembler = PromptAssembler(self)
+
         self.obsidian = ObsidianIntegration(
             self._storage,
             self.episodic, self.semantic, self.procedural,
@@ -379,6 +383,14 @@ class CortexEngine:
     def request_fill(self, gap_id: str) -> str | None:
         """Get a question to ask the user to fill a gap."""
         return self.gap_filling.request_fill(gap_id)
+
+    # ══════════════════════════════════════════════════════════
+    #  PROMPT ASSEMBLY
+    # ══════════════════════════════════════════════════════════
+
+    def assemble_prompt(self, query: str, **kwargs: Any) -> AssembledPrompt:
+        """Convenience method for prompt assembly."""
+        return self.prompt_assembler.assemble(query, **kwargs)
 
     # ══════════════════════════════════════════════════════════
     #  RELATIONSHIPS
