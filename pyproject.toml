@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex-memory"
+version = "0.1.0"
+description = "CORTEX — Cognitive Orchestrated Retrieval with Temporal EXperience. A self-improving cognitive memory architecture for AI agents."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [{name = "Anirach", email = "anirach@example.com"}]
+keywords = ["memory", "ai", "agents", "cognitive-architecture", "self-improving"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.24.0"]
+
+[project.optional-dependencies]
+transformers = ["sentence-transformers>=2.2.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
+
+[project.urls]
+Homepage = "https://github.com/anirach/cortex-memory"
+Repository = "https://github.com/anirach/cortex-memory"
+
+[tool.setuptools.packages.find]
+include = ["cortex*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
